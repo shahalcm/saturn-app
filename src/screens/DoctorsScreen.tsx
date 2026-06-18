@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     FlatList,
     ScrollView,
@@ -11,13 +11,15 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    ActivityIndicator,
+    RefreshControl,
 } from "react-native";
 import {
     useSafeAreaInsets
 } from "react-native-safe-area-context";
 import { DoctorCard } from "../components/DoctorCard";
 import { BORDER_RADIUS, COLORS } from "../constants/colors";
-import { DOCTORS } from "../constants/mockData";
+import { providerAPI } from "../services/api";
 
 type RootTabParamList = {
   Doctors: undefined;
@@ -29,28 +31,72 @@ export const DoctorsScreen: React.FC<DoctorsScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [selectedSpecialty, setSelectedSpecialty] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [providers, setProviders] = useState<any[]>([]);
+  const [filteredDoctors, setFilteredDoctors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const specialties = ["All", "Psychology", "General", "Ayurveda", "Nutrition"];
 
-  const filteredDoctors = DOCTORS.filter((doc) => {
-    let specialtyMatch = true;
-    if (selectedSpecialty !== "All") {
-      specialtyMatch = doc.specialties.includes(selectedSpecialty);
+  const fetchData = async () => {
+    try {
+      const providersRes = await providerAPI.getAll({ type: 'doctor' });
+      const backendProviders = providersRes.data.data.providers || [];
+      const mapped = backendProviders.map((p: any) => ({
+        id: p._id,
+        name: p.name,
+        rating: p.rating || 0,
+        experience: p.experience || 0,
+        pricePerMin: p.pricePerMin || 0,
+        isOnline: p.isOnline || false,
+        languages: p.languages || [],
+        specialties: p.specialties || [],
+        avatar: p.avatar || '🩺',
+        meetLink: p.meetLink || '',
+      }));
+      setProviders(mapped);
+    } catch (error) {
+      console.error('Doctors fetch error:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
+  };
 
-    const searchMatch =
-      doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.specialties.some((s) =>
-        s.toLowerCase().includes(searchQuery.toLowerCase()),
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    let list = [...providers];
+    if (selectedSpecialty !== "All") {
+      list = list.filter((doc) => doc.specialties?.includes(selectedSpecialty));
+    }
+    if (searchQuery.trim()) {
+      list = list.filter((doc) =>
+        doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        doc.specialties?.some((s: string) => s.toLowerCase().includes(searchQuery.toLowerCase()))
       );
-
-    return specialtyMatch && searchMatch;
-  });
+    }
+    setFilteredDoctors(list);
+  }, [providers, selectedSpecialty, searchQuery]);
 
   const handleChatPress = (doctor: any) => {
-    // Navigate to Chat screen, reusing the chat interface with doctor object
     navigation.navigate("Chat" as any, { astrologer: doctor });
   };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.lightGray }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -67,14 +113,20 @@ export const DoctorsScreen: React.FC<DoctorsScreenProps> = ({ navigation }) => {
         <View style={styles.headerContent}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("Home" as any);
+              }
+            }}
           >
             <Feather name="arrow-left" size={24} color={COLORS.white} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>Doctors</Text>
           </View>
-          <View style={{ width: 40 }} />{" "}
+          <View style={{ width: 40 }} />
           {/* Spacer to balance the back button */}
         </View>
       </LinearGradient>
@@ -126,7 +178,6 @@ export const DoctorsScreen: React.FC<DoctorsScreenProps> = ({ navigation }) => {
           </ScrollView>
         </View>
 
-        {/* Doctors List */}
         <FlatList
           data={filteredDoctors}
           keyExtractor={(item) => item.id}
@@ -134,12 +185,27 @@ export const DoctorsScreen: React.FC<DoctorsScreenProps> = ({ navigation }) => {
             <DoctorCard
               doctor={item}
               onPressChat={() => handleChatPress(item)}
-              onPressCall={() => alert("Call feature coming soon")}
-              onPressVideo={() => alert("Video feature coming soon")}
+              onPressCall={() => navigation.navigate('AudioCall' as any, {
+                astrologer: item,
+                sessionId: `${item.id}_${Date.now()}`,
+                isProvider: false,
+              })}
+              onPressVideo={() => navigation.navigate('VideoCall' as any, {
+                astrologer: item,
+                sessionId: `${item.id}_${Date.now()}`,
+                isProvider: false,
+              })}
             />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.primary]}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Feather

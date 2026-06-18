@@ -43,13 +43,13 @@ export const ReligionSelectScreen: React.FC<ReligionSelectScreenProps> = ({ navi
 
       // Submit entire seeker profile to backend
       const profileData = {
-        name: profile.name,
+        name: profile?.name || '',
         religion: selectedReligion,
-        gender: profile.gender,
-        languages: profile.languages,
-        dateOfBirth: profile.dob,
-        timeOfBirth: profile.tob,
-        placeOfBirth: profile.pob,
+        gender: profile?.gender || 'male',
+        languages: profile?.languages || ['English'],
+        dateOfBirth: profile?.dob || '',
+        timeOfBirth: profile?.tob || '',
+        placeOfBirth: profile?.pob || '',
       };
 
       try {

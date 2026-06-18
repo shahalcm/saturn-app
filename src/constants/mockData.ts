@@ -218,6 +218,7 @@ export const EDUCATION_DATA = {
       students: 1200,
       price: "Free",
       icon: "📖",
+      meetLink: "https://meet.google.com/abc-defg-hij",
     },
     {
       id: "me2",
@@ -260,6 +261,7 @@ export const EDUCATION_DATA = {
       students: 3400,
       price: "₹499/mo",
       icon: "🌟",
+      meetLink: "https://meet.google.com/xyz-pdqk-rst",
     },
     {
       id: "he2",
@@ -302,6 +304,7 @@ export const EDUCATION_DATA = {
       students: 2200,
       price: "Free",
       icon: "✝️",
+      meetLink: "https://meet.google.com/uvw-mnop-qrs",
     },
     {
       id: "ce2",

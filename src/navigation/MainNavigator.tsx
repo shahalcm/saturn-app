@@ -23,6 +23,7 @@ import { NotificationScreen } from "../screens/NotificationScreen";
 import { PrayerScreen } from "../screens/PrayerScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { SearchScreen } from "../screens/SearchScreen";
+import CustomerCareScreen from "../screens/CustomerCareScreen";
 
 export type MainStackParamList = {
   Home: undefined;
@@ -84,9 +85,14 @@ const MainTabNavigator = () => {
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
+        tabBarItemStyle: {
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100%",
+        },
         tabBarStyle: {
           position: "absolute",
-          bottom: insets.bottom > 0 ? insets.bottom : 12,
+          bottom: insets.bottom > 0 ? insets.bottom + 6 : 14,
           left: 16,
           right: 16,
           backgroundColor: "#EAEAEA",
@@ -98,8 +104,6 @@ const MainTabNavigator = () => {
           shadowOpacity: 0.12,
           shadowRadius: 6,
           borderTopWidth: 0,
-          alignItems: "center",
-          justifyContent: "center",
           paddingBottom: 0,
         },
         tabBarActiveTintColor: COLORS.primary,
@@ -110,60 +114,48 @@ const MainTabNavigator = () => {
         name="Home"
         component={HomeStackNavigator}
         options={{
-          tabBarIcon: ({ focused }) =>
-            focused ? (
-              <View style={styles.activeTabCircle}>
-                <FontAwesome name="home" size={24} color={COLORS.primary} />
-              </View>
-            ) : (
-              <FontAwesome name="home" size={24} color="#000000" />
-            ),
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.tabIconContainer, focused && styles.activeTabCircle]}>
+              <FontAwesome name="home" size={24} color={focused ? COLORS.primary : "#000000"} />
+            </View>
+          ),
         }}
       />
       <Tab.Screen
         name="ChatList"
         component={ChatListStackNavigator}
         options={{
-          tabBarIcon: ({ focused }) =>
-            focused ? (
-              <View style={styles.activeTabCircle}>
-                <MaterialIcons
-                  name="message"
-                  size={24}
-                  color={COLORS.primary}
-                />
-              </View>
-            ) : (
-              <MaterialIcons name="message" size={24} color="#000000" />
-            ),
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.tabIconContainer, focused && styles.activeTabCircle]}>
+              <MaterialIcons
+                name="message"
+                size={24}
+                color={focused ? COLORS.primary : "#000000"}
+              />
+            </View>
+          ),
         }}
       />
       <Tab.Screen
         name="Community"
         component={CommunityScreen as any}
         options={{
-          tabBarIcon: ({ focused }) =>
-            focused ? (
-              <View style={styles.activeTabCircle}>
-                <FontAwesome name="users" size={22} color={COLORS.primary} />
-              </View>
-            ) : (
-              <FontAwesome name="users" size={22} color="#000000" />
-            ),
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.tabIconContainer, focused && styles.activeTabCircle]}>
+              <FontAwesome name="users" size={22} color={focused ? COLORS.primary : "#000000"} />
+            </View>
+          ),
         }}
       />
       <Tab.Screen
         name="Profile"
         component={ProfileScreen as any}
         options={{
-          tabBarIcon: ({ focused }) =>
-            focused ? (
-              <View style={styles.activeTabCircle}>
-                <FontAwesome name="user" size={24} color={COLORS.primary} />
-              </View>
-            ) : (
-              <FontAwesome name="user" size={24} color="#000000" />
-            ),
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.tabIconContainer, focused && styles.activeTabCircle]}>
+              <FontAwesome name="user" size={24} color={focused ? COLORS.primary : "#000000"} />
+            </View>
+          ),
         }}
       />
     </Tab.Navigator>
@@ -286,7 +278,13 @@ const CustomDrawerContent = (props: any) => {
   );
 };
 
-export const MainNavigator = () => {
+import VideoCallScreen from "../screens/VideoCallScreen";
+import AudioCallScreen from "../screens/AudioCallScreen";
+import IncomingCallScreen from "../screens/IncomingCallScreen";
+
+const MainStack = createNativeStackNavigator();
+
+const MainDrawerNavigator = () => {
   return (
     <Drawer.Navigator
       useLegacyImplementation={false}
@@ -305,14 +303,43 @@ export const MainNavigator = () => {
   );
 };
 
+export const MainNavigator = () => {
+  return (
+    <MainStack.Navigator screenOptions={{ headerShown: false }}>
+      <MainStack.Screen name="MainDrawer" component={MainDrawerNavigator} />
+      <MainStack.Screen
+        name="VideoCall"
+        component={VideoCallScreen as any}
+        options={{ presentation: "fullScreenModal" }}
+      />
+      <MainStack.Screen
+        name="AudioCall"
+        component={AudioCallScreen as any}
+        options={{ presentation: "fullScreenModal" }}
+      />
+      <MainStack.Screen
+        name="IncomingCall"
+        component={IncomingCallScreen as any}
+        options={{ presentation: "fullScreenModal" }}
+      />
+      <MainStack.Screen
+        name="CustomerCare"
+        component={CustomerCareScreen as any}
+      />
+    </MainStack.Navigator>
+  );
+};
+
 const styles = StyleSheet.create({
-  activeTabCircle: {
+  tabIconContainer: {
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  activeTabCircle: {
+    backgroundColor: "#FFFFFF",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

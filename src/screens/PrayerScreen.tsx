@@ -1,6 +1,6 @@
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FlatList,
   StatusBar,
@@ -10,13 +10,14 @@ import {
   TouchableOpacity,
   ScrollView,
   View,
+  ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { PrayerCard } from '../components/PrayerCard';
-import { BORDER_RADIUS, COLORS, SIZES } from '../constants/colors';
-import { PRAYERS_DATA } from '../constants/mockData';
+import { BORDER_RADIUS, COLORS } from '../constants/colors';
 import { useUser } from '../context/UserContext';
+import { prayerAPI } from '../services/api';
 
 type RootTabParamList = {
   Prayer: undefined;
@@ -29,17 +30,37 @@ type FilterStatus = 'All' | 'Live' | 'Upcoming';
 export const PrayerScreen: React.FC<PrayerScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { religion } = useUser();
+  const [prayers, setPrayers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('All');
 
-  const activeReligion = religion || 'hindu';
+  const fetchPrayers = async () => {
+    try {
+      const res = await prayerAPI.getAll(religion);
+      const mapped = (res.data.data || []).map((item: any) => ({
+        id: item._id,
+        title: item.title,
+        time: `${item.scheduledTime} (${item.recurrence || 'one-time'})`,
+        isLive: item.status === 'live',
+        viewers: item.viewers || 0,
+      }));
+      setPrayers(mapped);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const rawPrayers = useMemo(() => {
-    return PRAYERS_DATA[activeReligion] || [];
-  }, [activeReligion]);
+  useEffect(() => {
+    fetchPrayers();
+    const interval = setInterval(fetchPrayers, 30000); // refresh every 30s
+    return () => clearInterval(interval);
+  }, [religion]);
 
   const filteredPrayers = useMemo(() => {
-    return rawPrayers.filter((prayer) => {
+    return prayers.filter((prayer) => {
       // 1. Search Query Match
       const searchMatch = prayer.title.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -53,7 +74,13 @@ export const PrayerScreen: React.FC<PrayerScreenProps> = ({ navigation }) => {
 
       return searchMatch && statusMatch;
     });
-  }, [rawPrayers, searchQuery, selectedStatus]);
+  }, [prayers, searchQuery, selectedStatus]);
+
+  if (loading) return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' }}>
+      <ActivityIndicator size="large" color="#F5A623" />
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -65,7 +92,16 @@ export const PrayerScreen: React.FC<PrayerScreenProps> = ({ navigation }) => {
         style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + 12 : 24 }]}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("Home" as any);
+              }
+            }}
+          >
             <Feather name="arrow-left" size={24} color={COLORS.white} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>

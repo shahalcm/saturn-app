@@ -1,13 +1,11 @@
 import Constants from 'expo-constants';
 
-const getBackendUrl = () => {
-  // Constants.expoConfig.hostUri gives IP:port of the packager server
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    return `http://${ip}:5000/api`;
-  }
-  return 'http://localhost:5000/api';
-};
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.saturnprovider.com/api';
+export const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || 'https://api.saturnprovider.com';
+export const AGORA_APP_ID = process.env.EXPO_PUBLIC_AGORA_APP_ID || '';
 
-export const API_URL = getBackendUrl();
+console.log('[Seeker Runtime Config] EXPO_PUBLIC_API_URL:', process.env.EXPO_PUBLIC_API_URL);
+console.log('[Seeker Runtime Config] API_URL resolved to:', API_URL);
+console.log('[Seeker Runtime Config] EXPO_PUBLIC_SOCKET_URL:', process.env.EXPO_PUBLIC_SOCKET_URL);
+console.log('[Seeker Runtime Config] SOCKET_URL resolved to:', SOCKET_URL);
+

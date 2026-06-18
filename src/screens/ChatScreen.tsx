@@ -17,28 +17,86 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { BORDER_RADIUS, COLORS } from '../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { ClassicAlertModal } from '../components/ClassicAlertModal';
+import { useAuth } from '../context/AuthContext';
+import { chatAPI, sessionAPI } from '../services/api';
+import { getSocket } from '../services/socketService';
 
 type RootStackParamList = {
-  Chat: { astrologer?: any; name?: string; roomId?: string };
+  Chat: { astrologer?: any; name?: string; roomId?: string; sessionId?: string };
 };
 
 type ChatScreenProps = NativeStackScreenProps<any, 'Chat'>;
 
-const INITIAL_MESSAGES = [
-  { id: '1', text: 'Hello 👋 How can I help you today?', isMine: false },
-  { id: '2', text: 'I want to know about my career growth.', isMine: true },
-  { id: '3', text: 'Sure ✨ Please share your birth date and time.', isMine: false },
-  { id: '4', text: '12 Aug 1998, 10:30 AM', isMine: true },
-  { id: '5', text: 'Great! Let me check your planetary alignment 🔮', isMine: false },
-];
-
 export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
+  const { userId } = useAuth();
+  const { astrologer, name, sessionId } = route.params || {};
+
+  const providerId = astrologer?.id || astrologer?._id;
+  const [activeSessionId, setActiveSessionId] = useState<string | undefined>(sessionId);
+  const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const { astrologer, name } = route.params || {};
   const flatListRef = useRef<FlatList>(null);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const initChatSession = async () => {
+      if (activeSessionId) return;
+      if (!providerId) return;
+      try {
+        const res = await sessionAPI.startSession(providerId, 'chat');
+        if (res.data?.success && res.data?.data?._id) {
+          setActiveSessionId(res.data.data._id);
+        }
+      } catch (e) {
+        console.warn('Failed to start chat session, using fallback:', e);
+        setActiveSessionId('demo_session_id');
+      }
+    };
+    initChatSession();
+  }, [providerId, activeSessionId]);
+
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!activeSessionId) return;
+      if (activeSessionId === 'demo_session_id') return;
+      try {
+        const res = await chatAPI.getMessages(activeSessionId);
+        const formatted = (res.data.data?.messages || []).map((m: any) => ({
+          id: m._id || String(Math.random()),
+          text: m.content,
+          isMine: m.senderId === userId,
+        }));
+        setMessages(formatted);
+      } catch (e) {
+        console.warn('Error loading chat history:', e);
+      }
+    };
+    loadMessages();
+  }, [activeSessionId, userId]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (socket && activeSessionId) {
+      const handleReceiveMessage = (message: any) => {
+        if (message.sessionId === activeSessionId) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: message._id || String(Date.now()),
+              text: message.content || message.message,
+              isMine: message.senderId === userId,
+            },
+          ]);
+        }
+      };
+
+      socket.on('receiveMessage', handleReceiveMessage);
+      return () => {
+        socket.off('receiveMessage', handleReceiveMessage);
+      };
+    }
+  }, [activeSessionId, userId]);
 
   useEffect(() => {
     setTimeout(() => {
@@ -127,27 +185,37 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => 
     });
   };
 
-  const handleSend = () => {
-    if (newMessage.trim().length === 0) return;
+  const handleSend = async () => {
+    if (newMessage.trim().length === 0 || !activeSessionId) return;
 
-    const newMsg = {
-      id: String(messages.length + 1),
-      text: newMessage,
-      isMine: true,
-    };
-
-    setMessages([...messages, newMsg]);
+    const textToSend = newMessage;
     setNewMessage('');
 
-    // Simulate response
-    setTimeout(() => {
-      const response = {
-        id: String(messages.length + 2),
-        text: 'Thank you for sharing. Let me analyze your details... 🌟',
-        isMine: false,
-      };
-      setMessages((prev) => [...prev, response]);
-    }, 1000);
+    // Optimistically add message
+    const tempId = String(Date.now());
+    setMessages((prev) => [
+      ...prev,
+      { id: tempId, text: textToSend, isMine: true }
+    ]);
+
+    try {
+      const receiverId = providerId || 'provider_id';
+      if (activeSessionId !== 'demo_session_id') {
+        await chatAPI.sendMessage(activeSessionId, textToSend, receiverId);
+      }
+
+      const socket = getSocket();
+      if (socket) {
+        socket.emit('sendMessage', {
+          sessionId: activeSessionId,
+          content: textToSend,
+          senderId: userId,
+          receiverId,
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to send message:', err);
+    }
   };
 
   return (
@@ -156,7 +224,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => 
 
       {/* Header */}
       <LinearGradient colors={COLORS.gradient} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate("Home" as any);
+            }
+          }}
+        >
           <Text style={styles.backButton}>←</Text>
         </TouchableOpacity>
         <View style={styles.avatarSmall}>
@@ -180,7 +256,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 70 + insets.top : insets.top}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 70 + insets.top : 0}
       >
         {/* Messages */}
         <FlatList
@@ -210,10 +286,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => 
         />
 
         {/* Input Bar */}
-        <View style={[styles.inputBar, { paddingBottom: (insets.bottom > 0 && !isKeyboardVisible) ? insets.bottom : 12 }]}>
-          <TouchableOpacity style={styles.emojiButton}>
-            <Text style={styles.emojiIcon}>😊</Text>
-          </TouchableOpacity>
+        <View style={[styles.inputBar, { paddingBottom: (insets.bottom > 0 && !isKeyboardVisible) ? insets.bottom : 6 }]}>
           <TextInput
             style={styles.textInput}
             placeholder="Type a message..."
@@ -338,16 +411,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: 8,
     gap: 10,
     borderTopWidth: 0.5,
     borderTopColor: COLORS.borderLight,
-  },
-  emojiButton: {
-    padding: 8,
-  },
-  emojiIcon: {
-    fontSize: 22,
   },
   textInput: {
     flex: 1,

@@ -1,7 +1,7 @@
 import { Feather, FontAwesome } from "@expo/vector-icons";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     ScrollView,
     StatusBar,
@@ -10,14 +10,16 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    ActivityIndicator,
+    RefreshControl,
 } from "react-native";
 import {
     useSafeAreaInsets
 } from "react-native-safe-area-context";
 import { AstrologerCard } from "../components/AstrologerCard";
 import { BORDER_RADIUS, COLORS } from "../constants/colors";
-import { ASTROLOGERS } from "../constants/mockData";
 import { useUser } from "../context/UserContext";
+import { providerAPI, advertisementAPI } from "../services/api";
 
 type RootTabParamList = {
   Home: undefined;
@@ -29,28 +31,91 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [selectedLanguage, setSelectedLanguage] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const { religion } = useUser();
+  const { religion, profile } = useUser();
+
+  const [providers, setProviders] = useState<any[]>([]);
+  const [filteredProviders, setFilteredProviders] = useState<any[]>([]);
+  const [banners, setBanners] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const languages = ["All", "Malayalam", "Hindi", "English"];
 
-  const filteredAstrologers = ASTROLOGERS.filter((astro) => {
-    let languageMatch = true;
-    if (selectedLanguage !== "All") {
-      languageMatch = astro.languages.includes(selectedLanguage);
+  const fetchData = async () => {
+    try {
+      const [providersRes, adsRes] = await Promise.all([
+        providerAPI.getAll({ type: 'astrologer' }),
+        advertisementAPI.getActive(religion, 'home_banner').catch(() => ({ data: { data: [] } })),
+      ]);
+      
+      const backendProviders = providersRes.data.data.providers || [];
+      const mapped = backendProviders.map((p: any) => ({
+        id: p._id,
+        name: p.name,
+        rating: p.rating || 0,
+        experience: p.experience || 0,
+        pricePerMin: p.pricePerMin || 0,
+        isOnline: p.isOnline || false,
+        languages: p.languages || [],
+        specialties: p.specialties || [],
+        avatar: p.avatar || '👤',
+        meetLink: p.meetLink || '',
+      }));
+
+      setProviders(mapped);
+      setBanners(adsRes.data.data || []);
+    } catch (error) {
+      console.error('Home fetch error:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
+  };
 
-    const searchMatch =
-      astro.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      astro.specialties.some((s) =>
-        s.toLowerCase().includes(searchQuery.toLowerCase()),
+  useEffect(() => {
+    fetchData();
+  }, [religion]);
+
+  useEffect(() => {
+    let list = [...providers];
+    if (selectedLanguage !== "All") {
+      list = list.filter((p) => p.languages?.includes(selectedLanguage));
+    }
+    if (searchQuery.trim()) {
+      list = list.filter((p) =>
+        p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.specialties?.some((s: string) => s.toLowerCase().includes(searchQuery.toLowerCase()))
       );
+    }
+    setFilteredProviders(list);
+  }, [providers, selectedLanguage, searchQuery]);
 
-    return languageMatch && searchMatch;
-  });
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
+  }, [religion]);
 
   const handleChatPress = (astrologer: any) => {
     navigation.navigate("Chat" as any, { astrologer });
   };
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' }}>
+        <ActivityIndicator size="large" color="#F5A623" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -90,7 +155,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <View style={styles.notificationBadge} />
             </TouchableOpacity>
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>AK</Text>
+              <Text style={styles.avatarText}>
+                {getInitials(profile?.name || 'User')}
+              </Text>
             </View>
           </View>
         </View>
@@ -100,7 +167,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         style={styles.body}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#F5A623']} />}
       >
+        {/* ADVERTISEMENT BANNER */}
+        {banners.length > 0 && (
+          <TouchableOpacity
+            style={{ marginBottom: 16, borderRadius: 16, overflow: 'hidden', height: 100 }}
+            onPress={() => advertisementAPI.trackClick(banners[0]._id)}
+          >
+            <LinearGradient
+              colors={['#F5A623', '#E8841A']}
+              style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 }}
+            >
+              <Text style={{ fontSize: 18, fontWeight: '800', color: 'white', textAlign: 'center' }}>
+                {banners[0].title}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
         {/* Category Cards */}
         <ScrollView
           horizontal
@@ -221,21 +306,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Top Astrologers</Text>
           <Text style={styles.sectionCount}>
-            {filteredAstrologers.length} found
+            {filteredProviders.length} found
           </Text>
         </View>
 
         {/* Astrologer Cards */}
-        {filteredAstrologers.length > 0 ? (
-          filteredAstrologers.map((astrologer) => (
-            <AstrologerCard
-              key={astrologer.id}
-              astrologer={astrologer}
-              onPressChat={() => handleChatPress(astrologer)}
-              onPressCall={() => alert("Call feature coming soon")}
-              onPressVideo={() => alert("Video feature coming soon")}
-            />
-          ))
+        {filteredProviders.length > 0 ? (
+          <View style={styles.astrologerList}>
+            {filteredProviders.map((astrologer) => (
+              <AstrologerCard
+                key={astrologer.id}
+                astrologer={astrologer}
+                onPressChat={() => handleChatPress(astrologer)}
+                onPressCall={() => navigation.navigate('AudioCall' as any, {
+                  astrologer: astrologer,
+                  sessionId: `${astrologer.id}_${Date.now()}`,
+                  isProvider: false,
+                })}
+                onPressVideo={() => navigation.navigate('VideoCall' as any, {
+                  astrologer: astrologer,
+                  sessionId: `${astrologer.id}_${Date.now()}`,
+                  isProvider: false,
+                })}
+              />
+            ))}
+          </View>
         ) : (
           <View style={styles.emptyState}>
             <Feather
@@ -251,6 +346,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -334,7 +430,10 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   scrollContent: {
-    paddingBottom: 90,
+    paddingBottom: 130,
+  },
+  astrologerList: {
+    paddingBottom: 24,
   },
   categoriesScrollView: {
     marginHorizontal: -16,

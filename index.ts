@@ -9,8 +9,11 @@ LogBox.ignoreLogs([
   "[Reanimated] The `isReanimated3` function is deprecated",
 ]);
 
-// Polyfill useAnimatedGestureHandler for react-native-reanimated v4
-if (typeof (Reanimated as any).useAnimatedGestureHandler === "undefined") {
+// Polyfill useAnimatedGestureHandler for react-native-reanimated v4 if useEvent is available
+if (
+  typeof (Reanimated as any).useAnimatedGestureHandler === "undefined" &&
+  typeof (Reanimated as any).useEvent === "function"
+) {
   (Reanimated as any).useAnimatedGestureHandler =
     function useAnimatedGestureHandler(handlers: any, sharedValuesOrDeps: any) {
       const runOnJS = (Reanimated as any).runOnJS;

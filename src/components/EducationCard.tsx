@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Linking, Alert } from "react-native";
 import { BORDER_RADIUS, COLORS } from "../constants/colors";
 
 interface EducationCardProps {
@@ -11,13 +11,16 @@ interface EducationCardProps {
     students: number;
     price: string;
     icon: string;
+    meetLink?: string;
   };
   onPress?: () => void;
+  isEnrolled?: boolean;
 }
 
 export const EducationCard: React.FC<EducationCardProps> = ({
   education,
   onPress,
+  isEnrolled = false,
 }) => {
   const formatStudents = (count: number) => {
     if (count >= 1000) {
@@ -27,6 +30,27 @@ export const EducationCard: React.FC<EducationCardProps> = ({
   };
 
   const isPaid = education.price !== "Free";
+
+  const handleJoinMeet = () => {
+    if (!education.meetLink) return;
+
+    let url = education.meetLink.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = `https://${url}`;
+    }
+
+    Linking.canOpenURL(url)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(url);
+        } else {
+          Alert.alert("Invalid Link", "The link format is not supported.");
+        }
+      })
+      .catch(() => {
+        Alert.alert("Error", "An error occurred while trying to open the link.");
+      });
+  };
 
   return (
     <View style={styles.card}>
@@ -58,9 +82,30 @@ export const EducationCard: React.FC<EducationCardProps> = ({
         </View>
       </View>
 
-      <TouchableOpacity style={styles.enrollButton} onPress={onPress}>
-        <Text style={styles.enrollText}>Enroll</Text>
-      </TouchableOpacity>
+      <View style={styles.buttonRow}>
+        <TouchableOpacity
+          style={[
+            styles.enrollButton,
+            education.meetLink ? { flex: 1, marginRight: 8 } : null,
+            isEnrolled ? styles.enrolledButton : null
+          ]}
+          onPress={isEnrolled ? undefined : onPress}
+          disabled={isEnrolled}
+        >
+          <Text style={[styles.enrollText, isEnrolled ? styles.enrolledText : null]}>
+            {isEnrolled ? "Enrolled ✓" : "Enroll"}
+          </Text>
+        </TouchableOpacity>
+        {education.meetLink ? (
+          <TouchableOpacity
+            style={[styles.meetButton, { flex: 1 }]}
+            onPress={handleJoinMeet}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.meetText}>🎥 Join Meet</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 };
@@ -131,6 +176,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: COLORS.white,
   },
+  buttonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   enrollButton: {
     borderWidth: 1.5,
     borderColor: COLORS.primary,
@@ -143,5 +193,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: COLORS.primary,
+  },
+  meetButton: {
+    backgroundColor: COLORS.success,
+    borderRadius: BORDER_RADIUS.card,
+    paddingVertical: 9.5,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  meetText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.white,
+  },
+  enrolledButton: {
+    backgroundColor: "#E8F5E9",
+    borderColor: COLORS.success,
+  },
+  enrolledText: {
+    color: COLORS.success,
   },
 });

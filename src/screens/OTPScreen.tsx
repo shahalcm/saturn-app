@@ -77,44 +77,31 @@ export const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
         // Auto navigate after success
         setTimeout(async () => {
           try {
-            if (route.params.type === 'signup') {
-              // Signups must explicitly select a role first
-              await login(token, loggedUser.id || loggedUser._id, null);
-              await setUserRole(null);
-            } else {
-              if (role === 'seeker') {
-                await login(token, loggedUser.id || loggedUser._id, 'seeker');
-                await setUserRole('seeker');
-                if (loggedUser.religion) {
-                  await setReligion(loggedUser.religion);
-                }
-                const userProfile = {
-                  name: loggedUser.name || '',
-                  phone: loggedUser.phone || '',
-                  email: loggedUser.email || '',
-                  dob: loggedUser.dob || '',
-                  tob: loggedUser.tob || '',
-                  pob: loggedUser.pob || '',
-                  gender: loggedUser.gender || 'male',
-                  languages: loggedUser.languages || ['English'],
-                  avatar: loggedUser.avatar || '',
-                };
-                setProfile(userProfile);
-                await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
-              } else {
-                await login(token, loggedUser.id || loggedUser._id, 'provider');
-                await setUserRole('provider');
-                if (loggedUser.religion) {
-                  await setReligion(loggedUser.religion);
-                }
-                if (loggedUser.providerType) {
-                  await setProviderType(loggedUser.providerType);
-                }
-                if (loggedUser.verificationStatus) {
-                  await setProviderVerified(loggedUser.verificationStatus === 'verified');
-                }
-              }
+            if (role !== 'seeker') {
+              alert('This app is for seekers only. Please use the Provider app.');
+              setLoading(false);
+              setShowSuccess(false);
+              return;
             }
+
+            await login(token, loggedUser.id || loggedUser._id, 'seeker');
+            await setUserRole('seeker');
+            if (loggedUser.religion) {
+              await setReligion(loggedUser.religion);
+            }
+            const userProfile = {
+              name: loggedUser.name || '',
+              phone: loggedUser.phone || '',
+              email: loggedUser.email || '',
+              dob: loggedUser.dob || '',
+              tob: loggedUser.tob || '',
+              pob: loggedUser.pob || '',
+              gender: loggedUser.gender || 'male',
+              languages: loggedUser.languages || ['English'],
+              avatar: loggedUser.avatar || '',
+            };
+            setProfile(userProfile);
+            await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
           } catch (e) {
             console.error('Error in post-login setup:', e);
           }
@@ -137,10 +124,10 @@ export const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
           const mockUserId = 'mock_user_id_' + Date.now();
           const mockToken = 'mock_jwt_token_xyz';
           
+          await login(mockToken, mockUserId, 'seeker');
+          await setUserRole('seeker');
           if (isSignup && route.params.userData) {
             const uData = route.params.userData;
-            await login(mockToken, mockUserId, null);
-            await setUserRole(null);
             const userProfile = {
               name: uData.fullName || '',
               phone: uData.phone || '',
@@ -153,9 +140,6 @@ export const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
             };
             setProfile(userProfile);
             await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
-          } else {
-            await login(mockToken, mockUserId, 'seeker');
-            await setUserRole('seeker');
           }
         } catch (e) {
           console.error('Error in mock post-login setup:', e);

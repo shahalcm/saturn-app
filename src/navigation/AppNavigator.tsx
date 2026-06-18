@@ -6,11 +6,10 @@ import { useAuth } from "../context/AuthContext";
 import { useUser } from "../context/UserContext";
 import { AuthNavigator } from "./AuthNavigator";
 import { MainNavigator } from "./MainNavigator";
-import { ProviderNavigator } from "./ProviderMainNavigator";
 
 export const AppNavigator = () => {
   const { isLoggedIn, isLoading } = useAuth();
-  const { religion, userRole, isProviderVerified } = useUser();
+  const { religion } = useUser();
 
   if (isLoading) {
     return (
@@ -22,12 +21,8 @@ export const AppNavigator = () => {
 
   return (
     <NavigationContainer>
-      {isLoggedIn && religion && userRole && (userRole !== "provider" || isProviderVerified) ? (
-        userRole === "provider" ? (
-          <ProviderNavigator />
-        ) : (
-          <MainNavigator />
-        )
+      {isLoggedIn && religion ? (
+        <MainNavigator />
       ) : (
         <AuthNavigator />
       )}

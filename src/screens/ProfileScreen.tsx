@@ -1,6 +1,6 @@
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     ScrollView,
     StatusBar,
@@ -17,6 +17,8 @@ import { Feather } from '@expo/vector-icons';
 import { BORDER_RADIUS, COLORS, SIZES } from '../constants/colors';
 import { useAuth } from '../context/AuthContext';
 import { useUser } from '../context/UserContext';
+import { userAPI } from '../services/api';
+import { useTranslation } from '../context/LanguageContext';
 
 type RootTabParamList = {
   Profile: undefined;
@@ -27,11 +29,27 @@ type ProfileScreenProps = BottomTabScreenProps<RootTabParamList, 'Profile'>;
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { logout } = useAuth();
-  const { religion, profile, setReligion } = useUser();
+  const { religion, profile, setReligion, setProfile } = useUser();
+  const { locale, changeLanguage, t } = useTranslation();
   const [religionModalVisible, setReligionModalVisible] = useState(false);
   const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
   const [helpModalVisible, setHelpModalVisible] = useState(false);
+  const [languageModalVisible, setLanguageModalVisible] = useState(false);
   const [supportText, setSupportText] = useState('');
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await userAPI.getProfile();
+        if (res.data.success && res.data.data) {
+          setProfile(res.data.data);
+        }
+      } catch (e) {
+        console.error('Error fetching profile:', e);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -122,25 +140,30 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         {/* Settings Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
+          <Text style={styles.sectionTitle}>{t('settings.title')}</Text>
 
           <TouchableOpacity style={styles.settingItem} onPress={() => setReligionModalVisible(true)}>
-            <Text style={styles.settingLabel}>🏛️ Change Religion</Text>
+            <Text style={styles.settingLabel}>🏛️ {t('settings.changeReligion')}</Text>
+            <Text style={styles.settingArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={() => setLanguageModalVisible(true)}>
+            <Text style={styles.settingLabel}>🌐 {t('settings.selectLanguage')}</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Notifications' as any)}>
-            <Text style={styles.settingLabel}>🔔 Notifications</Text>
+            <Text style={styles.settingLabel}>🔔 {t('common.notifications')}</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingItem} onPress={() => setPrivacyModalVisible(true)}>
-            <Text style={styles.settingLabel}>🔒 Privacy Policy</Text>
+            <Text style={styles.settingLabel}>🔒 {t('settings.privacyPolicy')}</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={() => setHelpModalVisible(true)}>
-            <Text style={styles.settingLabel}>❓ Help & Support</Text>
+          <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('CustomerCare' as any)}>
+            <Text style={styles.settingLabel}>❓ {t('settings.helpSupport')}</Text>
             <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
         </View>
@@ -150,7 +173,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           style={styles.logoutButton}
           onPress={handleLogout}
         >
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>{t('common.logout')}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -294,6 +317,51 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 <Text style={styles.modalButtonTextSecondary}>Submit Ticket</Text>
               </TouchableOpacity>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 4. Select Language Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={languageModalVisible}
+        onRequestClose={() => setLanguageModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('settings.selectLanguage')}</Text>
+              <TouchableOpacity onPress={() => setLanguageModalVisible(false)}>
+                <Feather name="x" size={20} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>Select your preferred language for the app.</Text>
+            {[
+              { code: 'en', label: 'English', native: 'English' },
+              { code: 'ml', label: 'Malayalam', native: 'മലയാളം' },
+              { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
+              { code: 'ta', label: 'Tamil', native: 'தமிழ்' }
+            ].map((lang) => {
+              const isSelected = locale === lang.code;
+              return (
+                <TouchableOpacity
+                  key={lang.code}
+                  style={[styles.modalOptionRow, isSelected && styles.modalOptionSelected]}
+                  onPress={async () => {
+                    await changeLanguage(lang.code);
+                    setLanguageModalVisible(false);
+                    Alert.alert(t('common.success'), `Language updated to ${lang.label}!`);
+                  }}
+                >
+                  <Text style={styles.modalOptionEmoji}>🌐</Text>
+                  <Text style={[styles.modalOptionLabel, isSelected && styles.modalOptionTextSelected]}>
+                    {lang.native} ({lang.label})
+                  </Text>
+                  {isSelected ? <Feather name="check" size={18} color={COLORS.primary} /> : null}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </Modal>

@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
     FlatList,
     ScrollView,
@@ -11,14 +11,16 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    ActivityIndicator,
+    RefreshControl,
 } from "react-native";
 import {
     useSafeAreaInsets
 } from "react-native-safe-area-context";
 import { EducationCard } from "../components/EducationCard";
 import { BORDER_RADIUS, COLORS } from "../constants/colors";
-import { EDUCATION_DATA } from "../constants/mockData";
 import { useUser } from "../context/UserContext";
+import { educationAPI } from "../services/api";
 
 type RootTabParamList = {
   Education: undefined;
@@ -33,17 +35,49 @@ export const EducationScreen: React.FC<EducationScreenProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const { religion } = useUser();
+  const [courses, setCourses] = useState<any[]>([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLevel, setSelectedLevel] = useState<FilterLevel>("All");
 
-  const activeReligion = religion || "hindu";
+  const fetchCourses = async () => {
+    try {
+      const [res, enrolledRes] = await Promise.all([
+        educationAPI.getAll(religion),
+        educationAPI.getEnrolled().catch(() => ({ data: { data: [] } })),
+      ]);
+      const mapped = (res.data.data || []).map((item: any) => ({
+        id: item._id,
+        title: item.title,
+        instructor: item.providerName || 'Instructor',
+        level: item.level || 'Beginner',
+        students: item.enrolledStudents || 0,
+        price: item.price === 0 ? 'Free' : `₹${item.price}`,
+        meetLink: item.meetLink || '',
+      }));
+      setCourses(mapped);
+      setEnrolledCourseIds(enrolledRes.data.data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
-  const rawCourses = useMemo(() => {
-    return EDUCATION_DATA[activeReligion] || [];
-  }, [activeReligion]);
+  useEffect(() => {
+    fetchCourses();
+  }, [religion]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchCourses();
+  }, [religion]);
 
   const filteredCourses = useMemo(() => {
-    return rawCourses.filter((course) => {
+    return courses.filter((course) => {
       // 1. Search Query Match
       const searchMatch =
         course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -64,7 +98,23 @@ export const EducationScreen: React.FC<EducationScreenProps> = ({
 
       return searchMatch && levelMatch;
     });
-  }, [rawCourses, searchQuery, selectedLevel]);
+  }, [courses, searchQuery, selectedLevel]);
+
+  const handleEnroll = async (courseId: string) => {
+    try {
+      await educationAPI.enroll(courseId);
+      alert('Enrolled successfully!');
+      fetchCourses();
+    } catch (e) {
+      alert('Failed to enroll or already enrolled.');
+    }
+  };
+
+  if (loading) return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' }}>
+      <ActivityIndicator size="large" color="#F5A623" />
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -81,7 +131,13 @@ export const EducationScreen: React.FC<EducationScreenProps> = ({
         <View style={styles.headerContent}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("Home" as any);
+              }
+            }}
           >
             <Feather name="arrow-left" size={24} color={COLORS.white} />
           </TouchableOpacity>
@@ -156,11 +212,19 @@ export const EducationScreen: React.FC<EducationScreenProps> = ({
           renderItem={({ item }) => (
             <EducationCard
               education={item}
-              onPress={() => alert(`Enrolled in ${item.title}`)}
+              onPress={() => handleEnroll(item.id)}
+              isEnrolled={enrolledCourseIds.includes(item.id)}
             />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.primary]}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Feather

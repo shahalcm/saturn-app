@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Linking, Alert } from "react-native";
 import { BORDER_RADIUS, COLORS } from "../constants/colors";
 import { GradientButton } from "./GradientButton";
 
@@ -13,6 +13,7 @@ interface Doctor {
   languages: string[];
   specialties: string[];
   avatar: string;
+  meetLink?: string;
 }
 
 interface DoctorCardProps {
@@ -93,6 +94,7 @@ export const DoctorCard: React.FC<DoctorCardProps> = ({
           <Text style={styles.outlineButtonText}>Video</Text>
         </TouchableOpacity>
       </View>
+
     </View>
   );
 };
@@ -235,5 +237,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: COLORS.primary,
+  },
+  meetButton: {
+    backgroundColor: COLORS.success || "#4CAF50",
+    borderRadius: BORDER_RADIUS.button || 19,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+  },
+  meetText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.white || "#FFFFFF",
   },
 });

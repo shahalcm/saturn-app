@@ -5,20 +5,30 @@
     "version": "1.0.0",
     "sdkVersion": "56.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/saturn-icon.png",
     "scheme": "saturn",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.saturn.astrology"
+      "bundleIdentifier": "com.saturn.astrology",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Saturn needs camera access for video calls",
+        "NSMicrophoneUsageDescription": "Saturn needs microphone access for voice calls"
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E8841A",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/images/saturn-icon.png"
       },
-      "package": "com.saturn.astrology"
+      "package": "com.saturn.astrology",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH",
+        "BLUETOOTH_CONNECT"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -31,9 +41,22 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "resizeMode": "cover",
-          "backgroundColor": "#1A1A1A"
+          "image": "./assets/images/saturn-logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ],
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Saturn needs camera access for video calls"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Saturn needs microphone access for voice and video calls"
         }
       ]
     ]

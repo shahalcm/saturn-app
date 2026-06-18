@@ -18,12 +18,11 @@ import { EducationCard } from "../components/EducationCard";
 import { PrayerCard } from "../components/PrayerCard";
 import { BORDER_RADIUS, COLORS } from "../constants/colors";
 import {
-    ASTROLOGERS,
-    DOCTORS,
     EDUCATION_DATA,
     PRAYERS_DATA,
 } from "../constants/mockData";
 import { useUser } from "../context/UserContext";
+import { providerAPI, educationAPI } from "../services/api";
 
 type AuthStackParamList = {
   Search: undefined;
@@ -52,17 +51,60 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation }) => {
 
   const [query, setQuery] = useState("");
   const [selectedTab, setSelectedTab] = useState<TabCategory>("All");
+  const [providers, setProviders] = useState<any[]>([]);
+  const [dbCourses, setDbCourses] = useState<any[]>([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
 
   const activeReligion = religion || "hindu";
   const prayers = PRAYERS_DATA[activeReligion] || [];
-  const courses = EDUCATION_DATA[activeReligion] || [];
 
   useEffect(() => {
     // Auto focus the search input on mount
     setTimeout(() => {
       inputRef.current?.focus();
     }, 150);
+
+    // Fetch providers from backend for dynamic search
+    const fetchProviders = async () => {
+      try {
+        const res = await providerAPI.getAll();
+        setProviders(res.data.data.providers || []);
+      } catch (err) {
+        console.error("Search fetch error:", err);
+      }
+    };
+    // Fetch courses from backend for dynamic search
+    const fetchCourses = async () => {
+      try {
+        const [res, enrolledRes] = await Promise.all([
+          educationAPI.getAll(),
+          educationAPI.getEnrolled().catch(() => ({ data: { data: [] } })),
+        ]);
+        setDbCourses(res.data.data || []);
+        setEnrolledCourseIds(enrolledRes.data.data || []);
+      } catch (err) {
+        console.error("Search courses fetch error:", err);
+      }
+    };
+    fetchProviders();
+    fetchCourses();
   }, []);
+
+  const handleEnroll = async (courseId: string) => {
+    try {
+      await educationAPI.enroll(courseId);
+      alert('Enrolled successfully!');
+      // Refresh courses
+      const [res, enrolledRes] = await Promise.all([
+        educationAPI.getAll(),
+        educationAPI.getEnrolled().catch(() => ({ data: { data: [] } })),
+      ]);
+      setDbCourses(res.data.data || []);
+      setEnrolledCourseIds(enrolledRes.data.data || []);
+    } catch (e) {
+      alert('Failed to enroll or already enrolled.');
+    }
+  };
 
   const handleSearchSuggestion = (term: string) => {
     setQuery(term);
@@ -78,32 +120,57 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation }) => {
     const term = query.trim().toLowerCase();
     if (!term) return [];
 
-    const filteredAstrologers = ASTROLOGERS.filter(
+    const mappedProviders = providers.map((p: any) => ({
+      id: p._id,
+      name: p.name,
+      rating: p.rating || 0,
+      experience: p.experience || 0,
+      pricePerMin: p.pricePerMin || 0,
+      isOnline: p.isOnline || false,
+      languages: p.languages || [],
+      specialties: p.specialties || [],
+      avatar: p.avatar || (p.providerType === 'doctor' ? '🩺' : '🔮'),
+      providerType: p.providerType,
+      meetLink: p.meetLink || '',
+    }));
+
+    const filteredAstrologers = mappedProviders.filter(
       (astro) =>
-        astro.name.toLowerCase().includes(term) ||
-        astro.specialties.some((s) => s.toLowerCase().includes(term)) ||
-        astro.languages.some((l) => l.toLowerCase().includes(term)),
+        astro.providerType === 'astrologer' &&
+        (astro.name.toLowerCase().includes(term) ||
+         astro.specialties.some((s: string) => s.toLowerCase().includes(term)) ||
+         astro.languages.some((l: string) => l.toLowerCase().includes(term)))
     ).map((item) => ({ ...item, type: "astrologer" as const }));
 
-    const filteredDoctors = DOCTORS.filter(
+    const filteredDoctors = mappedProviders.filter(
       (doc) =>
-        doc.name.toLowerCase().includes(term) ||
-        doc.specialties.some((s) => s.toLowerCase().includes(term)) ||
-        doc.languages.some((l) => l.toLowerCase().includes(term)),
+        doc.providerType === 'doctor' &&
+        (doc.name.toLowerCase().includes(term) ||
+         doc.specialties.some((s: string) => s.toLowerCase().includes(term)) ||
+         doc.languages.some((l: string) => l.toLowerCase().includes(term)))
     ).map((item) => ({ ...item, type: "doctor" as const }));
 
     const filteredPrayers = prayers
       .filter((p) => p.title.toLowerCase().includes(term))
       .map((item) => ({ ...item, type: "prayer" as const }));
 
-    const filteredCourses = courses
+    const filteredCourses = dbCourses
       .filter(
         (c) =>
-          c.title.toLowerCase().includes(term) ||
-          c.instructor.toLowerCase().includes(term) ||
-          c.level.toLowerCase().includes(term),
+          (c.title || "").toLowerCase().includes(term) ||
+          (c.providerName || "").toLowerCase().includes(term) ||
+          (c.level || "").toLowerCase().includes(term),
       )
-      .map((item) => ({ ...item, type: "course" as const }));
+      .map((item) => ({
+        id: item._id,
+        title: item.title,
+        instructor: item.providerName || 'Instructor',
+        level: item.level || 'Beginner',
+        students: item.enrolledStudents || 0,
+        price: item.price === 0 ? "Free" : `₹${item.price}`,
+        meetLink: item.meetLink || '',
+        type: "course" as const,
+      }));
 
     // Combine and Filter based on active tab
     if (selectedTab === "Astrologers") return filteredAstrologers;
@@ -151,7 +218,8 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation }) => {
         return (
           <EducationCard
             education={item}
-            onPress={() => alert(`Enrolled in ${item.title}`)}
+            onPress={() => handleEnroll(item.id)}
+            isEnrolled={enrolledCourseIds.includes(item.id)}
           />
         );
       default:
@@ -174,7 +242,13 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ navigation }) => {
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("Home" as any);
+              }
+            }}
             activeOpacity={0.7}
           >
             <Feather name="arrow-left" size={24} color={COLORS.white} />

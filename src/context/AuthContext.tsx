@@ -1,5 +1,7 @@
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setUnauthorizedCallback } from '../services/api';
+import { connectSocket, disconnectSocket } from '../services/socketService';
 
 export type AuthContextType = {
   isLoggedIn: boolean;
@@ -33,6 +35,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setUserId(savedUserId);
           setUserRole((savedRole as 'seeker' | 'provider') || null);
           setIsLoggedIn(true);
+          connectSocket(savedUserId);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -58,13 +61,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         await AsyncStorage.removeItem('userRole');
       }
+      connectSocket(newUserId);
     } catch (error) {
       console.error('Error logging in:', error);
       throw error;
     }
   };
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       setToken(null);
       setUserId(null);
@@ -75,11 +79,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await AsyncStorage.removeItem('userId');
       await AsyncStorage.removeItem('userRole');
       await AsyncStorage.removeItem('userReligion');
+      disconnectSocket();
     } catch (error) {
       console.error('Error logging out:', error);
       throw error;
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedCallback(logout);
+    return () => {
+      setUnauthorizedCallback(null);
+    };
+  }, [logout]);
 
   return (
     <AuthContext.Provider

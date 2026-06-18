@@ -152,7 +152,13 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("Home" as any);
+              }
+            }}
             activeOpacity={0.7}
           >
             <Feather name="arrow-left" size={24} color={COLORS.white} />

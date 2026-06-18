@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,16 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { COLORS, BORDER_RADIUS, SIZES } from '../constants/colors';
-import { ASTROLOGERS } from '../constants/mockData';
 import { AstrologerCard } from '../components/AstrologerCard';
+import { providerAPI } from '../services/api';
 
 type RootTabParamList = {
   Astrologers: undefined;
@@ -27,25 +29,72 @@ export const AstrologersScreen: React.FC<AstrologersScreenProps> = ({ navigation
   const insets = useSafeAreaInsets();
   const [selectedLanguage, setSelectedLanguage] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [providers, setProviders] = useState<any[]>([]);
+  const [filteredAstrologers, setFilteredAstrologers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const languages = ['All', 'Malayalam', 'Hindi', 'English'];
 
-  const filteredAstrologers = ASTROLOGERS.filter((astro) => {
-    let languageMatch = true;
-    if (selectedLanguage !== 'All') {
-      languageMatch = astro.languages.includes(selectedLanguage);
+  const fetchData = async () => {
+    try {
+      const providersRes = await providerAPI.getAll({ type: 'astrologer' });
+      const backendProviders = providersRes.data.data.providers || [];
+      const mapped = backendProviders.map((p: any) => ({
+        id: p._id,
+        name: p.name,
+        rating: p.rating || 0,
+        experience: p.experience || 0,
+        pricePerMin: p.pricePerMin || 0,
+        isOnline: p.isOnline || false,
+        languages: p.languages || [],
+        specialties: p.specialties || [],
+        avatar: p.avatar || '🔮',
+        meetLink: p.meetLink || '',
+      }));
+      setProviders(mapped);
+    } catch (error) {
+      console.error('Astrologers fetch error:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
+  };
 
-    const searchMatch =
-      astro.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      astro.specialties.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase()));
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-    return languageMatch && searchMatch;
-  });
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    let list = [...providers];
+    if (selectedLanguage !== 'All') {
+      list = list.filter((astro) => astro.languages?.includes(selectedLanguage));
+    }
+    if (searchQuery.trim()) {
+      list = list.filter((astro) =>
+        astro.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        astro.specialties.some((s: string) => s.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+    }
+    setFilteredAstrologers(list);
+  }, [providers, selectedLanguage, searchQuery]);
 
   const handleChatPress = (astrologer: any) => {
     navigation.navigate('Chat' as any, { astrologer });
   };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.lightGray }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -57,7 +106,16 @@ export const AstrologersScreen: React.FC<AstrologersScreenProps> = ({ navigation
         style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + 12 : 24 }]}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("Home" as any);
+              }
+            }}
+          >
             <Feather name="arrow-left" size={24} color={COLORS.white} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
@@ -105,7 +163,6 @@ export const AstrologersScreen: React.FC<AstrologersScreenProps> = ({ navigation
           </ScrollView>
         </View>
 
-        {/* Astrologers List */}
         <FlatList
           data={filteredAstrologers}
           keyExtractor={(item) => item.id}
@@ -113,12 +170,27 @@ export const AstrologersScreen: React.FC<AstrologersScreenProps> = ({ navigation
             <AstrologerCard
               astrologer={item}
               onPressChat={() => handleChatPress(item)}
-              onPressCall={() => alert('Call feature coming soon')}
-              onPressVideo={() => alert('Video feature coming soon')}
+              onPressCall={() => navigation.navigate('AudioCall' as any, {
+                astrologer: item,
+                sessionId: `${item.id}_${Date.now()}`,
+                isProvider: false,
+              })}
+              onPressVideo={() => navigation.navigate('VideoCall' as any, {
+                astrologer: item,
+                sessionId: `${item.id}_${Date.now()}`,
+                isProvider: false,
+              })}
             />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.primary]}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Feather name="search" size={48} color={COLORS.textSecondary} style={{ marginBottom: 12 }} />

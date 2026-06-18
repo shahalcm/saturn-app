@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Linking, Alert } from "react-native";
 import { BORDER_RADIUS, COLORS } from "../constants/colors";
 import { GradientButton } from "./GradientButton";
 
@@ -13,6 +13,7 @@ interface Astrologer {
   languages: string[];
   specialties: string[];
   avatar: string;
+  meetLink?: string;
 }
 
 interface AstrologerCardProps {
@@ -186,5 +187,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.purple,
+  },
+  meetButton: {
+    backgroundColor: COLORS.success || "#4CAF50",
+    borderRadius: BORDER_RADIUS.button,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+  },
+  meetText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.white || "#FFFFFF",
   },
 });

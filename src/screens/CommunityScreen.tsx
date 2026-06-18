@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   FlatList,
   StatusBar,
@@ -10,13 +10,16 @@ import {
   Modal,
   Platform,
   Share,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { BORDER_RADIUS, COLORS } from '../constants/colors';
-import { COMMUNITY_POSTS } from '../constants/mockData';
+import { useUser } from '../context/UserContext';
+import { communityAPI } from '../services/api';
 
 type RootTabParamList = {
   Community: undefined;
@@ -24,73 +27,64 @@ type RootTabParamList = {
 
 type CommunityScreenProps = BottomTabScreenProps<RootTabParamList, 'Community'>;
 
-interface Comment {
-  id: string;
-  author: string;
-  avatar: string;
-  time: string;
-  content: string;
-}
-
 export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
   const insets = useSafeAreaInsets();
-  const [posts, setPosts] = useState(COMMUNITY_POSTS);
-  const [likedPosts, setLikedPosts] = useState<Record<string, boolean>>({});
-  
-  // Track comments list per post ID
-  const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>({
-    '1': [
-      { id: '1-1', author: 'Rahul Sharma', avatar: '👨', time: '1h ago', content: 'Yes, Pandit Rajesh is indeed very accurate!' },
-      { id: '1-2', author: 'Karan Johar', avatar: '🧑', time: '30m ago', content: 'I am planning to book a session soon too.' }
-    ],
-    '2': [
-      { id: '2-1', author: 'Sneha Patel', avatar: '👩', time: '3h ago', content: 'Vedic astrology courses are top-tier here.' }
-    ],
-    '3': [
-      { id: '3-1', author: 'Amit Khan', avatar: '👨', time: '5h ago', content: 'Which prayers do you follow daily?' }
-    ]
-  });
-
+  const { profile } = useUser();
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [newPostText, setNewPostText] = useState('');
+  const [posting, setPosting] = useState(false);
+
   const [selectedPostForComments, setSelectedPostForComments] = useState<any | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
+  const [commenting, setCommenting] = useState(false);
+
+  const fetchPosts = async () => {
+    try {
+      const res = await communityAPI.getPosts();
+      setPosts(res.data.data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchPosts();
+  }, []);
 
   // Post Submission
-  const handleCreatePost = () => {
+  const handleCreatePost = async () => {
     if (newPostText.trim().length === 0) return;
-    
-    const newPost = {
-      id: String(Date.now()),
-      author: 'You',
-      avatar: '👤',
-      time: 'Just now',
-      content: newPostText,
-      likes: 0,
-      comments: 0,
-    };
-    
-    setPosts([newPost, ...posts]);
-    setNewPostText('');
+    setPosting(true);
+    try {
+      await communityAPI.createPost(newPostText.trim());
+      setNewPostText('');
+      fetchPosts();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to post review');
+    } finally {
+      setPosting(false);
+    }
   };
 
   // Like Logic
-  const handleLike = (postId: string) => {
-    const isAlreadyLiked = likedPosts[postId];
-    
-    setLikedPosts(prev => ({
-      ...prev,
-      [postId]: !isAlreadyLiked
-    }));
-    
-    setPosts(prevPosts => prevPosts.map(post => {
-      if (post.id === postId) {
-        return {
-          ...post,
-          likes: isAlreadyLiked ? post.likes - 1 : post.likes + 1
-        };
-      }
-      return post;
-    }));
+  const handleLike = async (postId: string) => {
+    try {
+      await communityAPI.likePost(postId);
+      fetchPosts();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // Share Logic
@@ -105,45 +99,53 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
   };
 
   // Add Comment Logic
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!selectedPostForComments || newCommentText.trim().length === 0) return;
-    
-    const postId = selectedPostForComments.id;
-    const newComment: Comment = {
-      id: `${postId}-${Date.now()}`,
-      author: 'You',
-      avatar: '👤',
-      time: 'Just now',
-      content: newCommentText,
-    };
-    
-    setCommentsByPost(prev => ({
-      ...prev,
-      [postId]: [...(prev[postId] || []), newComment]
-    }));
-    
-    // Update posts comment count
-    setPosts(prevPosts => prevPosts.map(post => {
-      if (post.id === postId) {
-        return {
-          ...post,
-          comments: post.comments + 1
-        };
-      }
-      return post;
-    }));
-    
-    // Keep modal state updated
-    setSelectedPostForComments((prev: any) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        comments: prev.comments + 1
-      };
-    });
-    
-    setNewCommentText('');
+    setCommenting(true);
+    try {
+      const postId = selectedPostForComments._id;
+      const res = await communityAPI.commentPost(postId, newCommentText.trim());
+      setNewCommentText('');
+      
+      // Update selected post state to reflect new comment list
+      const updatedPost = res.data.data;
+      setSelectedPostForComments(updatedPost);
+      
+      fetchPosts();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to add comment');
+    } finally {
+      setCommenting(false);
+    }
   };
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+  };
+
+  const formatTime = (date: string) => {
+    if (!date) return 'Just now';
+    const diff = Date.now() - new Date(date).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return `Just now`;
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
+  if (loading) return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' }}>
+      <ActivityIndicator size="large" color="#F5A623" />
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -160,12 +162,15 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
 
       <FlatList
         data={posts}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item._id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#F5A623']} />}
         ListHeaderComponent={
           <View style={styles.createPostCard}>
             <View style={styles.createPostHeader}>
               <View style={styles.createPostAvatar}>
-                <Text style={styles.createPostAvatarText}>👤</Text>
+                <Text style={styles.createPostAvatarText}>
+                  {getInitials(profile?.name || 'User')}
+                </Text>
               </View>
               <Text style={styles.createPostTitle}>Share Your Experience</Text>
             </View>
@@ -181,10 +186,10 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
             <TouchableOpacity
               style={[
                 styles.submitPostButton,
-                newPostText.trim().length === 0 && styles.submitPostButtonDisabled,
+                (newPostText.trim().length === 0 || posting) && styles.submitPostButtonDisabled,
               ]}
               onPress={handleCreatePost}
-              disabled={newPostText.trim().length === 0}
+              disabled={newPostText.trim().length === 0 || posting}
               activeOpacity={0.7}
             >
               <LinearGradient
@@ -193,7 +198,9 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
                 end={{ x: 1, y: 0 }}
                 style={styles.submitPostButtonGradient}
               >
-                <Text style={styles.submitPostButtonText}>Post Review</Text>
+                <Text style={styles.submitPostButtonText}>
+                  {posting ? 'Posting...' : 'Post Review'}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -202,11 +209,15 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
           <View style={styles.postCard}>
             <View style={styles.postHeader}>
               <View style={styles.authorAvatar}>
-                <Text style={styles.authorAvatarText}>{item.avatar}</Text>
+                <Text style={styles.authorAvatarText}>
+                  {getInitials(item.authorId?.name || item.authorName || 'Anonymous')}
+                </Text>
               </View>
               <View style={styles.authorInfo}>
-                <Text style={styles.authorName}>{item.author}</Text>
-                <Text style={styles.postTime}>{item.time}</Text>
+                <Text style={styles.authorName}>
+                  {item.authorId?.name || item.authorName || 'Anonymous'}
+                </Text>
+                <Text style={styles.postTime}>{formatTime(item.createdAt)}</Text>
               </View>
             </View>
 
@@ -215,14 +226,12 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
             <View style={styles.postFooter}>
               <TouchableOpacity 
                 style={styles.footerItem} 
-                onPress={() => handleLike(item.id)}
+                onPress={() => handleLike(item._id)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.footerIcon}>
-                  {likedPosts[item.id] ? '❤️' : '👍'}
-                </Text>
-                <Text style={[styles.footerText, likedPosts[item.id] && { color: COLORS.error, fontWeight: '700' }]}>
-                  {item.likes} {likedPosts[item.id] ? 'Liked' : 'Likes'}
+                <Text style={styles.footerIcon}>❤️</Text>
+                <Text style={styles.footerText}>
+                  {item.likes?.length || 0} Likes
                 </Text>
               </TouchableOpacity>
 
@@ -232,7 +241,9 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
                 activeOpacity={0.7}
               >
                 <Text style={styles.footerIcon}>💬</Text>
-                <Text style={styles.footerText}>{item.comments} Comments</Text>
+                <Text style={styles.footerText}>
+                  {item.comments?.length || 0} Comments
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -280,8 +291,12 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
             {selectedPostForComments ? (
               <View style={styles.postPreview}>
                 <View style={styles.previewAuthorRow}>
-                  <Text style={styles.previewAvatar}>{selectedPostForComments.avatar}</Text>
-                  <Text style={styles.previewAuthor}>{selectedPostForComments.author}</Text>
+                  <Text style={styles.previewAvatar}>
+                    {getInitials(selectedPostForComments.authorId?.name || selectedPostForComments.authorName || 'Anonymous')}
+                  </Text>
+                  <Text style={styles.previewAuthor}>
+                    {selectedPostForComments.authorId?.name || selectedPostForComments.authorName || 'Anonymous'}
+                  </Text>
                 </View>
                 <Text style={styles.previewText}>{selectedPostForComments.content}</Text>
               </View>
@@ -289,19 +304,21 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
 
             {/* Comments List */}
             <FlatList
-              data={selectedPostForComments ? (commentsByPost[selectedPostForComments.id] || []) : []}
-              keyExtractor={(item) => item.id}
+              data={selectedPostForComments ? (selectedPostForComments.comments || []) : []}
+              keyExtractor={(item, index) => item._id || index.toString()}
               renderItem={({ item }) => (
                 <View style={styles.commentItem}>
                   <View style={styles.commentAvatar}>
-                    <Text style={styles.commentAvatarText}>{item.avatar}</Text>
+                    <Text style={styles.commentAvatarText}>
+                      {getInitials(item.name || 'Anonymous')}
+                    </Text>
                   </View>
                   <View style={styles.commentBody}>
                     <View style={styles.commentAuthorRow}>
-                      <Text style={styles.commentAuthor}>{item.author}</Text>
-                      <Text style={styles.commentTime}>{item.time}</Text>
+                      <Text style={styles.commentAuthor}>{item.name || 'Anonymous'}</Text>
+                      <Text style={styles.commentTime}>{formatTime(item.createdAt)}</Text>
                     </View>
-                    <Text style={styles.commentText}>{item.content}</Text>
+                    <Text style={styles.commentText}>{item.text}</Text>
                   </View>
                 </View>
               )}
@@ -328,10 +345,10 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = () => {
               <TouchableOpacity
                 style={[
                   styles.sendCommentButton,
-                  newCommentText.trim().length === 0 && styles.sendCommentButtonDisabled,
+                  (newCommentText.trim().length === 0 || commenting) && styles.sendCommentButtonDisabled,
                 ]}
                 onPress={handleAddComment}
-                disabled={newCommentText.trim().length === 0}
+                disabled={newCommentText.trim().length === 0 || commenting}
                 activeOpacity={0.7}
               >
                 <Feather name="send" size={18} color={COLORS.white} />
@@ -393,12 +410,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: COLORS.lightBackground,
+    backgroundColor: '#FFF0D6',
     alignItems: 'center',
     justifyContent: 'center',
   },
   createPostAvatarText: {
-    fontSize: 16,
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   createPostTitle: {
     fontSize: 14,
@@ -459,7 +478,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   authorAvatarText: {
-    fontSize: 18,
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   authorInfo: {
     flex: 1,
@@ -560,7 +581,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   previewAvatar: {
-    fontSize: 14,
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primary,
+    backgroundColor: '#FFF0D6',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
   previewAuthor: {
     fontSize: 12,
@@ -590,7 +617,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   commentAvatarText: {
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   commentBody: {
     flex: 1,
@@ -669,4 +698,3 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.textHint,
   },
 });
-

@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   FlatList,
   ScrollView,
@@ -11,54 +11,18 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
-import {
-  useSafeAreaInsets
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BORDER_RADIUS, COLORS } from "../constants/colors";
-import { ASTROLOGERS, DOCTORS } from "../constants/mockData";
+import { chatAPI } from "../services/api";
 
 type RootTabParamList = {
   ChatList: undefined;
 };
 
 type ChatListScreenProps = BottomTabScreenProps<RootTabParamList, "ChatList">;
-
-// Generate more classic recent chats incorporating both astrologers and doctors
-const RECENT_CHATS = [
-  ...ASTROLOGERS.slice(0, 3).map((astro, index) => ({
-    ...astro,
-    type: "astrologer",
-    lastMessage:
-      index === 0
-        ? "Thank you for consulting me. Have a blessed day!"
-        : index === 1
-          ? "Your remedies are aligned with your planetary charts."
-          : "We will schedule the Shiva Puja for next Monday.",
-    time: index === 0 ? "2h ago" : index === 1 ? "4h ago" : "1d ago",
-    unread: index === 0 ? 2 : 0,
-  })),
-  ...DOCTORS.slice(0, 3).map((doc, index) => ({
-    ...doc,
-    type: "doctor",
-    lastMessage:
-      index === 0
-        ? "Please follow the prescription and update me in a week."
-        : index === 1
-          ? "Let me know if the symptoms improve by tomorrow."
-          : "The health parameters you sent look good.",
-    time: index === 0 ? "1h ago" : index === 1 ? "5h ago" : "2d ago",
-    unread: index === 0 ? 1 : 0,
-  })),
-].sort((a, b) => {
-  // Sort by time: 1h ago, 2h ago, 4h ago, 5h ago, 1d ago, 2d ago
-  const getTimeWeight = (t: string) => {
-    if (t.includes("h ago")) return parseInt(t) * 60;
-    if (t.includes("d ago")) return parseInt(t) * 24 * 60;
-    return 9999;
-  };
-  return getTimeWeight(a.time) - getTimeWeight(b.time);
-});
 
 type FilterType = "All" | "Unread" | "Astrologers" | "Doctors";
 
@@ -68,21 +32,88 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterType>("All");
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [filteredConversations, setFilteredConversations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const filteredChats = RECENT_CHATS.filter((chat) => {
-    // Search query match
-    const matchesSearch =
-      chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      chat.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
+  const fetchConversations = async () => {
+    try {
+      const res = await chatAPI.getConversations();
+      setConversations(res.data.data || []);
+    } catch (e) {
+      console.error('Error fetching conversations:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
-    if (!matchesSearch) return false;
+  useEffect(() => {
+    fetchConversations();
+  }, []);
 
-    // Filter type match
-    if (activeFilter === "Unread") return chat.unread > 0;
-    if (activeFilter === "Astrologers") return chat.type === "astrologer";
-    if (activeFilter === "Doctors") return chat.type === "doctor";
-    return true;
-  });
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchConversations();
+  }, []);
+
+  useEffect(() => {
+    let list = [...conversations];
+    
+    // Search query filter
+    if (searchQuery.trim()) {
+      list = list.filter((item) => {
+        const providerName = item.provider?.name || item.lastMessage?.senderName || '';
+        const lastMsg = item.lastMessage?.content || '';
+        return providerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+               lastMsg.toLowerCase().includes(searchQuery.toLowerCase());
+      });
+    }
+
+    // Tab category filter
+    if (activeFilter === "Unread") {
+      list = list.filter((c) => c.unreadCount > 0);
+    } else if (activeFilter === "Astrologers") {
+      list = list.filter((c) => c.provider?.providerType === "astrologer");
+    } else if (activeFilter === "Doctors") {
+      list = list.filter((c) => c.provider?.providerType === "doctor");
+    }
+
+    setFilteredConversations(list);
+  }, [conversations, searchQuery, activeFilter]);
+
+  const getInitials = (name?: string) => {
+    if (!name) return '??';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+  };
+
+  const formatTime = (date?: string) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    if (diff < 86400000) {
+      return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    }
+    if (diff < 172800000) {
+      return 'Yesterday';
+    }
+    return d.toLocaleDateString('en-IN', { weekday: 'short' });
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.white }}>
+        <ActivityIndicator size="large" color="#F5A623" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -159,56 +190,70 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({
       </View>
 
       <FlatList
-        data={filteredChats}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.chatItem}
-            activeOpacity={0.7}
-            onPress={() =>
-              navigation.navigate("Chat" as any, { astrologer: item })
-            }
-          >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{item.avatar}</Text>
-              {item.isOnline ? <View style={styles.onlineBadge} /> : null}
-            </View>
-            <View style={styles.chatInfo}>
-              <View style={styles.nameRow}>
-                <Text style={styles.chatName}>{item.name}</Text>
-                {item.type === "doctor" ? (
-                  <View style={styles.roleTag}>
-                    <Text style={styles.roleTagText}>Doctor</Text>
-                  </View>
-                ) : (
-                  <View
-                    style={[styles.roleTag, { backgroundColor: "#FFF0D6" }]}
-                  >
-                    <Text
+        data={filteredConversations}
+        keyExtractor={(item, index) => item._id || index.toString()}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#F5A623']} />}
+        renderItem={({ item }) => {
+          const providerName = item.provider?.name || item.lastMessage?.senderName || 'Provider';
+          return (
+            <TouchableOpacity
+              style={styles.chatItem}
+              activeOpacity={0.7}
+              onPress={() =>
+                navigation.navigate("Chat" as any, {
+                  astrologer: {
+                    _id: item.provider?._id || item._id,
+                    name: providerName,
+                    avatar: item.provider?.avatar || '👤',
+                  },
+                  sessionId: item._id || item.lastMessage?.sessionId,
+                })
+              }
+            >
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {getInitials(providerName)}
+                </Text>
+                {item.provider?.isOnline ? <View style={styles.onlineBadge} /> : null}
+              </View>
+              <View style={styles.chatInfo}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.chatName}>{providerName}</Text>
+                  {item.provider?.providerType ? (
+                    <View
                       style={[
-                        styles.roleTagText,
-                        { color: COLORS.primaryDark },
+                        styles.roleTag,
+                        { backgroundColor: item.provider.providerType === 'doctor' ? '#E8D5F2' : '#FFF0D6' }
                       ]}
                     >
-                      Astro
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.lastMessage} numberOfLines={1}>
-                {item.lastMessage}
-              </Text>
-            </View>
-            <View style={styles.rightSection}>
-              <Text style={styles.time}>{item.time}</Text>
-              {item.unread > 0 ? (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadText}>{item.unread}</Text>
+                      <Text
+                        style={[
+                          styles.roleTagText,
+                          { color: item.provider.providerType === 'doctor' ? COLORS.purple : COLORS.primaryDark }
+                        ]}
+                      >
+                        {item.provider.providerType === 'doctor' ? 'Doctor' : 'Astro'}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-              ) : null}
-            </View>
-          </TouchableOpacity>
-        )}
+                <Text style={styles.lastMessage} numberOfLines={1}>
+                  {item.lastMessage?.content || 'No messages yet'}
+                </Text>
+              </View>
+              <View style={styles.rightSection}>
+                <Text style={styles.time}>
+                  {formatTime(item.lastMessage?.createdAt)}
+                </Text>
+                {item.unreadCount > 0 ? (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadText}>{item.unreadCount}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </TouchableOpacity>
+          );
+        }}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -324,7 +369,9 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   avatarText: {
-    fontSize: 24,
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   onlineBadge: {
     position: "absolute",

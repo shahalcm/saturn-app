@@ -24,6 +24,7 @@ import { PrayerScreen } from "../screens/PrayerScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { SearchScreen } from "../screens/SearchScreen";
 import CustomerCareScreen from "../screens/CustomerCareScreen";
+import LivePrayerScreen from "../screens/LivePrayerScreen";
 
 export type MainStackParamList = {
   Home: undefined;
@@ -37,6 +38,7 @@ export type MainStackParamList = {
   Doctors: undefined;
   Search: undefined;
   Notifications: undefined;
+  LivePrayer: { prayer: any };
 };
 
 const Tab = createBottomTabNavigator<MainStackParamList>();
@@ -325,6 +327,10 @@ export const MainNavigator = () => {
       <MainStack.Screen
         name="CustomerCare"
         component={CustomerCareScreen as any}
+      />
+      <MainStack.Screen
+        name="LivePrayer"
+        component={LivePrayerScreen as any}
       />
     </MainStack.Navigator>
   );

@@ -45,7 +45,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/saturn-logo.png",
-          "resizeMode": "contain",
+          "resizeMode": "cover",
           "backgroundColor": "#000000"
         }
       ],
@@ -61,7 +61,8 @@
         {
           "microphonePermission": "Saturn needs microphone access for voice and video calls"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

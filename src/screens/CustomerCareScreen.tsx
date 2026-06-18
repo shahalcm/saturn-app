@@ -623,7 +623,7 @@ export default function CustomerCareScreen({ navigation }: { navigation: any }) 
             }}>
               <Ionicons name="checkmark-circle" size={50} color="#4CAF50" />
             </View>
-            <Text style={{ fontSize: 20, fontWeight: '850', color: '#1A1A1A', marginBottom: 8 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: '#1A1A1A', marginBottom: 8 }}>
               {t('customerCare.ticketSubmitted')}
             </Text>
             {createdTicket && (

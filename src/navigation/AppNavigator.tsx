@@ -8,11 +8,12 @@ import { AuthNavigator } from "./AuthNavigator";
 import { MainNavigator } from "./MainNavigator";
 
 export const AppNavigator = () => {
+  console.log("STEP_3_NAVIGATOR");
   const { isLoggedIn, isLoading } = useAuth();
   const { religion } = useUser();
 
   React.useEffect(() => {
-    console.log("🚀 [Lifecycle Log]: Navigation mounted");
+    console.log("🚀 [Lifecycle Log]: NAVIGATOR_MOUNTED");
   }, []);
 
   if (isLoading) {

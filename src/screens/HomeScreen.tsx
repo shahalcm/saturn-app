@@ -30,7 +30,7 @@ type HomeScreenProps = BottomTabScreenProps<RootTabParamList, "Home">;
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   React.useEffect(() => {
-    console.log("🚀 [Lifecycle Log]: Home screen rendered");
+    console.log("🚀 [Lifecycle Log]: HOME_SCREEN_MOUNTED");
   }, []);
   const [selectedLanguage, setSelectedLanguage] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");

@@ -11,6 +11,10 @@ export const AppNavigator = () => {
   const { isLoggedIn, isLoading } = useAuth();
   const { religion } = useUser();
 
+  React.useEffect(() => {
+    console.log("🚀 [Lifecycle Log]: Navigation mounted");
+  }, []);
+
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>

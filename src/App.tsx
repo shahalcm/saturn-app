@@ -7,6 +7,9 @@ import { AppNavigator } from "./navigation/AppNavigator";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 export default function App() {
+  React.useEffect(() => {
+    console.log("🚀 [Lifecycle Log]: App started");
+  }, []);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>

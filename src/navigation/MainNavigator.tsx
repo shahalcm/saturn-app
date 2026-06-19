@@ -287,6 +287,9 @@ import IncomingCallScreen from "../screens/IncomingCallScreen";
 const MainStack = createNativeStackNavigator();
 
 const MainDrawerNavigator = () => {
+  React.useEffect(() => {
+    console.log("🚀 [Lifecycle Log]: Drawer mounted");
+  }, []);
   return (
     <Drawer.Navigator
       useLegacyImplementation={false}

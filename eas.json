@@ -12,10 +12,20 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.saturnprovider.com/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://api.saturnprovider.com",
+        "EXPO_PUBLIC_AGORA_APP_ID": "5c6983f088f149a9980d6f2c26dfb88e"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.saturnprovider.com/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://api.saturnprovider.com",
+        "EXPO_PUBLIC_AGORA_APP_ID": "5c6983f088f149a9980d6f2c26dfb88e"
+      }
     }
   },
   "submit": {

@@ -1,7 +1,11 @@
 import React from "react";
 import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-// Drawer navigator imports disabled for test
+import {
+  createDrawerNavigator,
+  DrawerContentScrollView,
+  DrawerItem,
+} from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -41,7 +45,7 @@ export type MainStackParamList = {
 const Tab = createBottomTabNavigator<MainStackParamList>();
 const HomeStack = createNativeStackNavigator();
 const ChatListStack = createNativeStackNavigator();
-// const Drawer = createDrawerNavigator();
+const Drawer = createDrawerNavigator();
 
 const HomeStackNavigator = () => {
   return (
@@ -162,7 +166,119 @@ const MainTabNavigator = () => {
 };
 
 const CustomDrawerContent = (props: any) => {
-  return null;
+  const { religion, profile } = useUser();
+  const { logout } = useAuth();
+  const insets = useSafeAreaInsets();
+
+  const religionLabel =
+    religion === "muslim"
+      ? "Muslim"
+      : religion === "hindu"
+        ? "Hindu"
+        : religion === "christian"
+          ? "Christian"
+          : "";
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      {/* Header Profile Section with Gradient */}
+      <LinearGradient
+        colors={COLORS.gradient}
+        style={[
+          styles.drawerHeader,
+          { paddingTop: insets.top > 0 ? insets.top + 20 : 30 },
+        ]}
+      >
+        <TouchableOpacity
+          style={[
+            styles.drawerCloseButton,
+            { top: insets.top > 0 ? insets.top + 8 : 12 },
+          ]}
+          onPress={() => props.navigation.closeDrawer()}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <View style={styles.drawerAvatar}>
+          <Text style={styles.drawerAvatarText}>👤</Text>
+        </View>
+        <Text style={styles.drawerName}>{profile?.name || "User Profile"}</Text>
+        {religionLabel ? (
+          <View style={styles.drawerReligionTag}>
+            <Text style={styles.drawerReligionText}>{religionLabel}</Text>
+          </View>
+        ) : null}
+      </LinearGradient>
+
+      {/* Drawer Items */}
+      <DrawerContentScrollView
+        {...props}
+        contentContainerStyle={{ paddingTop: 10 }}
+      >
+        <DrawerItem
+          label="Home"
+          icon={({ color, size }) => (
+            <FontAwesome name="home" size={size} color={color} />
+          )}
+          activeTintColor={COLORS.primary}
+          inactiveTintColor="#1A1A1A"
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate("Home")}
+        />
+        <DrawerItem
+          label="Chats"
+          icon={({ color, size }) => (
+            <MaterialIcons name="message" size={size} color={color} />
+          )}
+          activeTintColor={COLORS.primary}
+          inactiveTintColor="#1A1A1A"
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate("ChatList")}
+        />
+        <DrawerItem
+          label="Community"
+          icon={({ color, size }) => (
+            <FontAwesome name="users" size={size} color={color} />
+          )}
+          activeTintColor={COLORS.primary}
+          inactiveTintColor="#1A1A1A"
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate("Community")}
+        />
+        <DrawerItem
+          label="Profile"
+          icon={({ color, size }) => (
+            <FontAwesome name="user" size={size} color={color} />
+          )}
+          activeTintColor={COLORS.primary}
+          inactiveTintColor="#1A1A1A"
+          labelStyle={styles.drawerLabel}
+          onPress={() => props.navigation.navigate("Profile")}
+        />
+      </DrawerContentScrollView>
+
+      {/* Bottom Footer Section with Logout */}
+      <View
+        style={[
+          styles.drawerFooter,
+          { paddingBottom: insets.bottom > 0 ? insets.bottom + 12 : 20 },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.drawerLogoutButton}
+          onPress={async () => {
+            try {
+              await logout();
+            } catch (err) {
+              alert("Logout failed");
+            }
+          }}
+        >
+          <Text style={styles.drawerLogoutText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 };
 
 import VideoCallScreen from "../screens/VideoCallScreen";
@@ -176,7 +292,22 @@ const MainDrawerNavigator = () => {
   React.useEffect(() => {
     console.log("🚀 [Lifecycle Log]: DRAWER_MOUNTED");
   }, []);
-  return <MainTabNavigator />;
+  return (
+    <Drawer.Navigator
+      useLegacyImplementation={false}
+      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      screenOptions={{
+        headerShown: false,
+        drawerStyle: {
+          width: 280,
+          borderTopRightRadius: 24,
+          borderBottomRightRadius: 24,
+        },
+      }}
+    >
+      <Drawer.Screen name="MainTabs" component={MainTabNavigator} />
+    </Drawer.Navigator>
+  );
 };
 
 export const MainNavigator = () => {

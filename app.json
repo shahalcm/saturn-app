@@ -46,6 +46,14 @@
       "typedRoutes": false
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraProguardRules": "-keep class io.agora.** { *; }"
+          }
+        }
+      ],
       "@react-native-community/datetimepicker",
       [
         "expo-splash-screen",

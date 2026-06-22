@@ -1,5 +1,5 @@
-import "./src/polyfill";
-import "react-native-gesture-handler";
+// import "./src/polyfill";
+// import "react-native-gesture-handler";
 import React from "react";
 import { LogBox } from "react-native";
 

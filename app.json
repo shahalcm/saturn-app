@@ -39,6 +39,7 @@
       "typedRoutes": false
     },
     "plugins": [
+      "./plugins/withRNScreensFactory",
       [
         "expo-build-properties",
         {
